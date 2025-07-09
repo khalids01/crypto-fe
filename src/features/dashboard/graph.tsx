@@ -12,8 +12,11 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { format } from "date-fns";
+import dayjs from "dayjs";
+import calendar from "dayjs/plugin/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+
+dayjs.extend(calendar);
 
 export function Graph() {
   const [selectedPeriod, setSelectedPeriod] = useState("1D");
@@ -38,11 +41,34 @@ export function Graph() {
         ?.filter((platform) => selectedPlatforms.includes(platform.exchange))
         ?.map((platform) => ({
           name: platform.exchange,
-          color: "blue",
+          color: platform.color,
           data: platform.marketSnapshots,
         })) || []
     );
   }, [platformData?.data, selectedPlatforms]);
+
+  const calculateYAxisDomain = () => {
+    if (!chartData.length) return [0, 100];
+
+    // Get all price values
+    const allPrices = chartData
+      .flatMap((dataPoint) =>
+        selectedPlatforms.map((platform) =>
+          Number(dataPoint[`${platform}_price`])
+        )
+      )
+      .filter((price) => !isNaN(price));
+
+    if (allPrices.length === 0) return [0, 100];
+
+    const average = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+    // 5% of average price
+    const range = average * 0.05;
+    const min = average - range / 2; // Center the range around the average
+    const max = average + range / 2;
+
+    return [min, max];
+  };
 
   const chartData = useMemo(() => {
     if (!platforms.length || !platforms[0]?.data?.length) return [];
@@ -51,10 +77,7 @@ export function Graph() {
 
     return Array.from({ length }).map((_, index) => {
       const timestamp = new Date(platforms[0].data[index]?.openTime).getTime();
-      const time = format(
-        new Date(platforms[0].data[index]?.openTime),
-        "HH:mm"
-      );
+      const time = dayjs(platforms[0].data[index]?.openTime).calendar();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const entry: Record<string, any> = {
@@ -73,7 +96,7 @@ export function Graph() {
       return entry;
     });
   }, [platforms]);
-  
+
   const formatCurrency = (value: number) => {
     if (value >= 1) return `$${value.toFixed(2)}`;
     return `$${value.toFixed(6).replace(/\.?0+$/, "")}`; // Remove trailing zeros for small numbers
@@ -81,8 +104,8 @@ export function Graph() {
 
   const periods = ["1D", "7D", "1M", "3M"];
 
-  if(isLoading) {
-    return <Skeleton className="h-[400px] w-full"/>
+  if (isLoading) {
+    return <Skeleton className="h-[400px] w-full" />;
   }
 
   return (
@@ -90,7 +113,11 @@ export function Graph() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Platform Selector */}
         <div className="flex flex-wrap gap-2">
-          {platforms.map((platform) => (
+          <h2 className="text-primary p-2 rounded-lg font-bold bg-purple-500">
+            {platformData?.data.coinName}
+          </h2>
+
+          {/* {platforms.map((platform) => (
             <Button
               key={platform.name}
               variant={
@@ -113,7 +140,7 @@ export function Graph() {
             >
               {platform.name}
             </Button>
-          ))}
+          ))} */}
         </div>
 
         {/* Price Chart */}
@@ -170,7 +197,7 @@ export function Graph() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: "#64748b", fontSize: 12 }}
-                    domain={["auto", "auto"]}
+                    domain={calculateYAxisDomain()}
                     tickFormatter={(value) => formatCurrency(Number(value))}
                   />
                   <Tooltip
