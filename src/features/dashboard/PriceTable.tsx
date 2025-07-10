@@ -76,7 +76,7 @@ export function PriceTable({ coinData, isLoading }: PriceTableProps) {
 
   return (
     <>
-    <div className="container mx-auto pb-16">
+    <div className="container max-w-7xl mx-auto pb-16">
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Price Comparison</CardTitle>
