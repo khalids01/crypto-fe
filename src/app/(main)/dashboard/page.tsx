@@ -1,11 +1,11 @@
-import { Graph } from "@/features/dashboard/graph"
+import { DashboardData } from "@/features/dashboard";
 
-const Page = ()=>{
-    return (
-       <>
-       <Graph/>
-       </> 
-    )
-}
+const Page = () => {
+  return (
+    <>
+      <DashboardData />
+    </>
+  );
+};
 
-export default Page
+export default Page;

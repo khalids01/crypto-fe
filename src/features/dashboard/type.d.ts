@@ -11,12 +11,12 @@ export interface MarketSnapshot {
   close: number; // Price when the minute ended
   volume: number; // Total BTC traded during the minute
   quoteVolume: number;
-  arbitrageId: string;
+  exchangeId: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Arbitrage {
+export interface Exchange {
   id: string;
   exchange: string;
   coinSymbol: string;
@@ -33,13 +33,7 @@ export interface CoinData {
   coinName: string;
   createdAt: string;
   updatedAt: string;
-  arbitrages: Arbitrage[];
+  exchanges: Exchange[];
 }
 
-export interface ArbitrageFeedList {
-  total: number;
-  symbol: string;
-  interval: string;
-  limit: number;
-  data: CoinData;
-}
+

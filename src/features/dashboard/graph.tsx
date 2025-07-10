@@ -15,17 +15,23 @@ import {
 import dayjs from "dayjs";
 import calendar from "dayjs/plugin/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CoinData } from "./type";
 
 dayjs.extend(calendar);
 
-export function Graph() {
+export function Graph({
+  coinData,
+  isLoading,
+}: {
+  coinData?: CoinData;
+  isLoading: boolean;
+}) {
   const [selectedPeriod, setSelectedPeriod] = useState("1D");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     "binance",
+    "kucoin"
   ]);
-  const {
-    arbitrageFeedQuery: { data: platformData, isLoading },
-  } = useArbitrageFeed();
+
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) =>
@@ -37,7 +43,7 @@ export function Graph() {
 
   const platforms = useMemo(() => {
     return (
-      platformData?.data.arbitrages
+      coinData?.exchanges
         ?.filter((platform) => selectedPlatforms.includes(platform.exchange))
         ?.map((platform) => ({
           name: platform.exchange,
@@ -45,7 +51,9 @@ export function Graph() {
           data: platform.marketSnapshots,
         })) || []
     );
-  }, [platformData?.data, selectedPlatforms]);
+  }, [coinData?.exchanges, selectedPlatforms]);
+
+  console.log(platforms)
 
   const calculateYAxisDomain = () => {
     if (!chartData.length) return [0, 100];
@@ -62,8 +70,8 @@ export function Graph() {
     if (allPrices.length === 0) return [0, 100];
 
     const average = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
-    // 5% of average price
-    const range = average * 0.05;
+    // ^ 2% of average price
+    const range = average * 0.02;
     const min = average - range / 2; // Center the range around the average
     const max = average + range / 2;
 
@@ -114,7 +122,7 @@ export function Graph() {
         {/* Platform Selector */}
         <div className="flex flex-wrap gap-2">
           <h2 className="text-primary p-2 rounded-lg font-bold bg-purple-500">
-            {platformData?.data.coinName}
+            {coinData?.coinName}
           </h2>
 
           {/* {platforms.map((platform) => (
@@ -220,7 +228,7 @@ export function Graph() {
                       dataKey={`${platform}_price`}
                       name={platform}
                       stroke={
-                        platformData?.data?.arbitrages?.find(
+                        coinData?.exchanges?.find(
                           (p) => p.exchange === platform
                         )?.color || "#8884d8"
                       }
@@ -289,7 +297,7 @@ export function Graph() {
                     className="w-3 h-3 rounded-full"
                     style={{
                       backgroundColor:
-                        platformData?.data?.arbitrages?.find(
+                        coinData?.exchanges?.find(
                           (p) => p.exchange === platform
                         )?.color || "#8884d8",
                     }}
