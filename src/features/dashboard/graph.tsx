@@ -1,5 +1,4 @@
 "use client";
-import { useArbitrageFeed } from "./useArbitrageFeed";
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +32,7 @@ export function Graph({
   ]);
 
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((prev) =>
       prev.includes(platform)
@@ -70,8 +70,8 @@ export function Graph({
     if (allPrices.length === 0) return [0, 100];
 
     const average = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
-    // ^ 2% of average price
-    const range = average * 0.02;
+    // ^ 1% of average price
+    const range = average * 0.01;
     const min = average - range / 2; // Center the range around the average
     const max = average + range / 2;
 
