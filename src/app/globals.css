@@ -120,3 +120,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide the TradingView  watermark logo */
+#tv-attr-logo {
+  display: none;
+}
