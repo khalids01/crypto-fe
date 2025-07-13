@@ -7,8 +7,14 @@ import {
   IChartApi,
   AreaData,
   CandlestickSeries,
+  Time,
+  CandlestickSeriesPartialOptions,
+  CandlestickData,
+  SeriesOptionsMap,
+  SeriesDefinition,
 } from "lightweight-charts";
 import dayjs from "dayjs";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 interface ExchangeComparisonChartProps {
   coinId?: string; // This prop is not needed anymore since we get a single coin's data
@@ -66,26 +72,20 @@ type ChartComponentProps = {
   };
 };
 
+const defaultExchangeColors = [
+  // [upColor, downColor]
+  ["#AF2AE9", "#E70D9F"], // binance: purple, red
+  ["#06D6CC", "#FC5F2F"], // kucoin: cyan, orange
+  ["#43a047", "#e53935"], // more exchanges...
+  ["#f9c846", "#f55c47"],
+];
+
 export const ChartComponent: React.FC<ChartComponentProps> = ({
   data,
   colors: { backgroundColor = "black", textColor = "white" } = {},
 }) => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
-
-  const candleData = useMemo(
-    () =>
-      data.exchanges[0].marketSnapshots.map((snapshot) => ({
-        time: dayjs(snapshot.openTime).format("YYYY-MM-DD"),
-        openTime: snapshot.openTime,
-        closeTime: snapshot.closeTime,
-        open: snapshot.open,
-        high: snapshot.high,
-        low: snapshot.low,
-        close: snapshot.close,
-      })),
-    [data]
-  );
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -96,13 +96,25 @@ export const ChartComponent: React.FC<ChartComponentProps> = ({
         textColor,
       },
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: 400,
       grid: {
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
       timeScale: {
-        borderVisible: false,
+        timeVisible: true,
+        secondsVisible: true,
+        tickMarkFormatter: (
+          time: Time,
+          tickMarkType: string,
+          locale: string
+        ) => {
+          const date = new Date((time as number) * 1000);
+          return date.toLocaleTimeString(locale, {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        },
       },
       rightPriceScale: {
         borderVisible: false,
@@ -111,18 +123,30 @@ export const ChartComponent: React.FC<ChartComponentProps> = ({
 
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
-    });
-    console.log(candleData)
-    candlestickSeries.setData(candleData);
+    // Dynamically add a candlestick series for each exchange
+    data.exchanges.forEach((exchange, idx) => {
+      const [upColor, downColor] =
+        defaultExchangeColors[idx % defaultExchangeColors.length];
 
-    chart.applyOptions({
-      timeScale: { timeVisible: true },
+      const candlestickSeries = chart.addSeries(CandlestickSeries, {
+        upColor,
+        downColor,
+        borderVisible: false,
+        wickUpColor: upColor,
+        wickDownColor: downColor,
+      });
+
+      const seriesData: CandlestickData[] = exchange.marketSnapshots.map(
+        (snapshot) => ({
+          time: Math.floor(dayjs(snapshot.openTime).unix()) as Time,
+          open: snapshot.open,
+          high: snapshot.high,
+          low: snapshot.low,
+          close: snapshot.close,
+        })
+      );
+
+      candlestickSeries.setData(seriesData);
     });
 
     const handleResize = () => {
@@ -139,10 +163,44 @@ export const ChartComponent: React.FC<ChartComponentProps> = ({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [backgroundColor, textColor]);
+  }, [data, backgroundColor, textColor]);
 
   return (
-    <div ref={chartContainerRef} style={{ width: "100%", height: "100%" }} />
+    <>
+      <div ref={chartContainerRef} style={{ width: "100%", height: "100%" }} />
+      <ul className="flex gap-4 justify-center mt-4">
+        {data.exchanges.map((ex, idx) => {
+          // Pick colors for this exchange
+          const [upColor, downColor] =
+            defaultExchangeColors[idx % defaultExchangeColors.length];
+          return (
+            <li key={ex.id} style={{ display: "flex", alignItems: "center" }}>
+              <span
+                style={{
+                  backgroundColor: upColor,
+                  fontWeight: "bold",
+                  marginRight: 2,
+                }}
+              >
+                <ArrowUp />
+              </span>
+              <span
+                style={{
+                  backgroundColor: downColor,
+                  fontWeight: "bold",
+                  marginRight: 6,
+                }}
+              >
+                <ArrowDown />
+              </span>
+              <span style={{ color: upColor, fontWeight: 500 }}>
+                {ex.exchange}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 };
 
