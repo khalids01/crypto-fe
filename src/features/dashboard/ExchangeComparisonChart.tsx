@@ -1,207 +1,110 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import { useArbitrageFeed } from "./useArbitrageFeed";
-import { CoinData } from "./type";
-import {
-  createChart,
-  ColorType,
-  IChartApi,
-  AreaData,
-  CandlestickSeries,
-  Time,
-  CandlestickSeriesPartialOptions,
-  CandlestickData,
-  SeriesOptionsMap,
-  SeriesDefinition,
-} from "lightweight-charts";
-import dayjs from "dayjs";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import TradingViewWidget from "./TradingViewWidget";
 
 interface ExchangeComparisonChartProps {
-  coinId?: string; // This prop is not needed anymore since we get a single coin's data
+  onSymbolChange?: (symbol: string) => void;
+  onIntervalChange?: (interval: string) => void;
 }
 
-export const ExchangeComparisonChart: React.FC<
-  ExchangeComparisonChartProps
-> = () => {
-  const { arbitrageFeedQuery } = useArbitrageFeed();
-  const { data, isLoading, error } = arbitrageFeedQuery;
+export function ExchangeComparisonChart({
+  onSymbolChange,
+  onIntervalChange
+}: ExchangeComparisonChartProps = {}) {
+  const {
+    arbitrageFeedQuery: { data, isLoading, error },
+  } = useArbitrageFeed();
 
-  // Handle loading and error states first
+  const [chartSymbol, setChartSymbol] = useState<string | undefined>(undefined);
+  const [chartInterval, setChartInterval] = useState<string>("15");
+  const [isChartReady, setIsChartReady] = useState(false);
+
+  // Handle symbol change from TradingView widget
+  const handleSymbolChange = useCallback((symbol: string) => {
+    setChartSymbol(symbol);
+    if (onSymbolChange) onSymbolChange(symbol);
+    console.log("Chart symbol changed to:", symbol);
+  }, [onSymbolChange]);
+
+  // Handle interval change from TradingView widget
+  const handleIntervalChange = useCallback((interval: string) => {
+    setChartInterval(interval);
+    if (onIntervalChange) onIntervalChange(interval);
+    console.log("Chart interval changed to:", interval);
+  }, [onIntervalChange]);
+
+  // Handle chart ready event
+  const handleChartReady = useCallback(() => {
+    setIsChartReady(true);
+    console.log("Chart is ready and initialized");
+  }, []);
+
+  // Show loading state
   if (isLoading) {
-    return <div className="p-4 text-center">Loading market data...</div>;
-  }
-
-  if (error) {
     return (
-      <div className="p-4 text-center text-red-500">
-        Error loading market data: {error.message}
-      </div>
-    );
-  }
-
-  // Check if we have valid data
-  if (!data || !data.exchanges || data.exchanges.length === 0) {
-    return (
-      <div className="p-4 text-center">
-        <div>No exchange data available</div>
-        <div className="text-sm text-gray-500 mt-2">
-          The API returned no exchange data for this coin.
+      <div className="w-full rounded-lg h-full px-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4">Loading chart data...</p>
         </div>
       </div>
     );
   }
 
+  // Show error state
+  if (error) {
+    return (
+      <div className="w-full rounded-lg h-full px-4 flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <p className="text-xl">Error loading chart data</p>
+          <p className="mt-2">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show no data state
+  if (!data || !data.exchanges || data.exchanges.length === 0) {
+    return (
+      <div className="w-full rounded-lg h-full px-4 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl">No data available</p>
+          <p className="mt-2">Please try again later</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Format symbol for TradingView
+  const symbol = chartSymbol || data.symbol;
+  console.log("Symbol for TradingView:", symbol);
+  console.log("Exchanges for TradingView:", data.exchanges);
+
   return (
     <div className="w-full rounded-lg h-full px-4">
-      <h2 className="text-xl font-semibold mb-4">
-        {data.coinName} ({data.symbol}) Price Comparison
-      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">
+          {data.coinName} ({symbol}) Price Comparison
+        </h2>
+        {isChartReady && (
+          <div className="text-sm text-muted-foreground">
+            Interval: {chartInterval}m
+          </div>
+        )}
+      </div>
 
-      <div className="w-full h-[calc(100%-40px)]">
-        <ChartComponent data={data}></ChartComponent>
+      <div className="w-full h-[500px]" style={{ minHeight: '500px' }}>
+        <TradingViewWidget
+          symbol={symbol}
+          exchanges={data.exchanges}
+          theme="dark"
+          interval={chartInterval}
+          onSymbolChange={handleSymbolChange}
+          onIntervalChange={handleIntervalChange}
+          onChartReady={handleChartReady}
+        />
       </div>
     </div>
   );
 };
-
-type ChartComponentProps = {
-  data: CoinData;
-  colors?: {
-    backgroundColor?: string;
-    textColor?: string;
-  };
-};
-
-const defaultExchangeColors = [
-  // [upColor, downColor]
-  ["#AF2AE9", "#E70D9F"], // binance: purple, red
-  ["#06D6CC", "#FC5F2F"], // kucoin: cyan, orange
-  ["#43a047", "#e53935"], // more exchanges...
-  ["#f9c846", "#f55c47"],
-];
-
-export const ChartComponent: React.FC<ChartComponentProps> = ({
-  data,
-  colors: { backgroundColor = "black", textColor = "white" } = {},
-}) => {
-  const chartContainerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: backgroundColor },
-        textColor,
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      grid: {
-        vertLines: { visible: false },
-        horzLines: { visible: false },
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: true,
-        tickMarkFormatter: (
-          time: Time,
-          tickMarkType: string,
-          locale: string
-        ) => {
-          const date = new Date((time as number) * 1000);
-          return date.toLocaleTimeString(locale, {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        },
-      },
-      rightPriceScale: {
-        borderVisible: false,
-      },
-    });
-
-    chartRef.current = chart;
-
-    // Dynamically add a candlestick series for each exchange
-    data.exchanges.forEach((exchange, idx) => {
-      const [upColor, downColor] =
-        defaultExchangeColors[idx % defaultExchangeColors.length];
-
-      const candlestickSeries = chart.addSeries(CandlestickSeries, {
-        upColor,
-        downColor,
-        borderVisible: false,
-        wickUpColor: upColor,
-        wickDownColor: downColor,
-      });
-
-      const seriesData: CandlestickData[] = exchange.marketSnapshots.map(
-        (snapshot) => ({
-          time: Math.floor(dayjs(snapshot.openTime).unix()) as Time,
-          open: snapshot.open,
-          high: snapshot.high,
-          low: snapshot.low,
-          close: snapshot.close,
-        })
-      );
-
-      candlestickSeries.setData(seriesData);
-    });
-
-    const handleResize = () => {
-      if (chartContainerRef.current && chart) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      chart.remove();
-    };
-  }, [data, backgroundColor, textColor]);
-
-  return (
-    <>
-      <div ref={chartContainerRef} style={{ width: "100%", height: "100%" }} />
-      <ul className="flex gap-4 justify-center mt-4">
-        {data.exchanges.map((ex, idx) => {
-          // Pick colors for this exchange
-          const [upColor, downColor] =
-            defaultExchangeColors[idx % defaultExchangeColors.length];
-          return (
-            <li key={ex.id} style={{ display: "flex", alignItems: "center" }}>
-              <span
-                style={{
-                  backgroundColor: upColor,
-                  fontWeight: "bold",
-                  marginRight: 2,
-                }}
-              >
-                <ArrowUp />
-              </span>
-              <span
-                style={{
-                  backgroundColor: downColor,
-                  fontWeight: "bold",
-                  marginRight: 6,
-                }}
-              >
-                <ArrowDown />
-              </span>
-              <span style={{ color: upColor, fontWeight: 500 }}>
-                {ex.exchange}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </>
-  );
-};
-
 export default ExchangeComparisonChart;
